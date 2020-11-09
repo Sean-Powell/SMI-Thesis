@@ -1,6 +1,6 @@
 from Expression import Expression
 from math import sin, cos, tan, log, pow, ceil
-from random import randint, shuffle
+from random import shuffle, randint
 from time import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +8,7 @@ import os
 import copy
 
 POPULATION_SIZE = 500
-MUTATION_CHANCE = 20
+MUTATION_CHANCE = 40
 NUMBER_OF_GENERATIONS = 250
 SELECTION_RATE = 25
 
@@ -29,10 +29,10 @@ os.mkdir(time_str)
 
 
 def load_data_set():
-    file = open("SCPUnion2.1_mu_vs_z.txt")
+    file = open("SCPUnion_mu_vs_z.txt")
     i = 0
     for line in file:
-        if i < 5:
+        if i < 4:
             i += 1
         else:
             line = line.strip()
@@ -51,28 +51,6 @@ def fitness_function(func):
 
 
 def get_terms(index, candidate_1: Expression, candidate_2: Expression):
-    # terms = []
-    # for _ in range(index):
-    #     chance = randint(0, 1)
-    #     if chance == 0:
-    #         term = candidate_1.terms[randint(0, (len(candidate_1.terms) - 1))]
-    #         chance = randint(0, 1)
-    #         if chance == 1:
-    #             term.exponent = candidate_2.terms[randint(0, len(candidate_2.terms) - 1)].exponent
-    #         chance = randint(0, 1)
-    #         if chance == 1:
-    #             term.coefficient = candidate_2.terms[randint(0, len(candidate_2.terms) - 1)].coefficient
-    #     else:
-    #         term = candidate_2.terms[randint(0, (len(candidate_2.terms) - 1))]
-    #         chance = randint(0, 1)
-    #         if chance == 1:
-    #             term.exponent = candidate_1.terms[randint(0, len(candidate_1.terms) - 1)].exponent
-    #         chance = randint(0, 1)
-    #         if chance == 1:
-    #             term.coefficient = candidate_1.terms[randint(0, len(candidate_1.terms) - 1)].coefficient
-    #     terms.append(copy.deepcopy(term))
-    # return terms
-
     terms = []
     new_terms = []
     candidate_1_terms = candidate_1.terms
@@ -150,94 +128,20 @@ def crossover(parent_1: Expression, parent_2: Expression):
     return child_1, child_2, child_3
 
 
-def one_point_cross(parent_1: Expression, parent_2: Expression):
-    par_1_terms = parent_1.terms
-    par_2_terms = parent_2.terms
-
-    par_1_len = len(par_1_terms)
-    par_2_len = len(par_2_terms)
-
-    child_1_terms = []
-    child_2_terms = []
-
-    if par_1_len == par_2_len:
-        # print("Equal cross")
-        crossover_point = randint(1, par_1_len - 1)
-        # print("crossover point", crossover_point)
-        for i in range(crossover_point):
-            child_1_terms.append(copy.deepcopy(par_1_terms[i]))
-            child_2_terms.append(copy.deepcopy(par_2_terms[i]))
-        for i in range(crossover_point, par_1_len):
-            child_1_terms.append(copy.deepcopy(par_2_terms[i]))
-            child_2_terms.append(copy.deepcopy(par_1_terms[i]))
-    elif par_1_len > par_2_len:
-        # print("one cross")
-        crossover_point = randint(1, par_2_len)
-        for i in range(crossover_point):
-            child_1_terms.append(par_1_terms[i])
-            child_2_terms.append(par_2_terms[i])
-        for i in range(crossover_point, par_2_len):
-            child_1_terms.append(par_2_terms[i])
-            child_2_terms.append(par_1_terms[i])
-
-        for i in range(par_2_len, par_1_len):
-            child_1_terms.append(par_1_terms[i])
-            child_2_terms.append(par_1_terms[i])
-    else:
-        # print("two cross")
-        crossover_point = randint(1, par_1_len)
-        for i in range(crossover_point):
-            child_1_terms.append(par_1_terms[i])
-            child_2_terms.append(par_2_terms[i])
-        for i in range(crossover_point, par_1_len):
-            child_1_terms.append(par_2_terms[i])
-            child_2_terms.append(par_1_terms[i])
-
-        for i in range(par_1_len, par_2_len):
-            child_1_terms.append(par_2_terms[i])
-            child_2_terms.append(par_2_terms[i])
-
-    child_1 = copy.deepcopy(Expression(functions, grammar, mutation_chance=MUTATION_CHANCE))
-    child_1.set_terms(child_1_terms)
-    child_2 = copy.deepcopy(Expression(functions, grammar, mutation_chance=MUTATION_CHANCE))
-    child_2.set_terms(child_2_terms)
-
-    # check if either of the children or one of the children or parent being the same
-    if child_1.get_string() == parent_1.get_string():
-        child_1.set_mutation_rate(100)
-        child_1.mutate()
-        child_1.set_mutation_rate(MUTATION_CHANCE)
-
-    if child_1.get_string() == parent_2.get_string():
-        child_1.set_mutation_rate(100)
-        child_1.mutate()
-        child_1.set_mutation_rate(MUTATION_CHANCE)
-
-    if child_2.get_string() == parent_1.get_string():
-        child_2.set_mutation_rate(100)
-        child_2.mutate()
-        child_2.set_mutation_rate(MUTATION_CHANCE)
-    if child_2.get_string() == parent_2.get_string():
-        child_2.set_mutation_rate(100)
-        child_2.mutate()
-        child_2.set_mutation_rate(MUTATION_CHANCE)
-
-    if child_1.get_string() == child_2.get_string():
-        child_1.set_mutation_rate(100)
-        child_2.mutate()
-        child_1.set_mutation_rate(MUTATION_CHANCE)
-    return child_1, child_2
-
-
 def create_scatter_plot(function: Expression, rank):
     rank = rank + 1
     plt.plot(x, y, 'o')
     plt.errorbar(x, y, yerr=s, fmt=' ')
 
-    func_x = np.linspace(0.000001, 1.4, 100)
+    func_x = np.linspace(min(x), max(x), 100)
     func_y = []
     for i in func_x:
         func_y.append(function.evaluate(i))
+
+    z = np.linspace(0.01, 1.8, num=1000)
+    mu = np.log(z ** 2.17145 * (-z ** 2.82 + z + np.exp(z))) + 42.83 - 5. * np.log10(0.7)
+
+    plt.plot(mu)
 
     plt.plot(func_x, func_y, c='r', label=function.get_string())
     plt.xlabel("Redshift")

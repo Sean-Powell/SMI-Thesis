@@ -1,5 +1,5 @@
 from Term import Term
-from random import randint
+from random import uniform, randint
 import copy
 
 
@@ -16,7 +16,7 @@ class Expression:
     chance = 0
     debug_string = ""
 
-    def __init__(self, functions, grammar, min_size=3, max_size=6, max_exponent=3, max_coefficient=5,
+    def __init__(self, functions, grammar, min_size=3, max_size=6, max_exponent=3.0, max_coefficient=5.0,
                  mutation_chance=10):
         self.functions = functions
         self.grammar = grammar
@@ -32,8 +32,8 @@ class Expression:
         for _ in range(size):
             sign = randint(0, 1)
             operation = grammar[randint(0, len(grammar) - 1)]
-            exponent = randint(1, max_exponent)
-            coefficient = randint(1, max_coefficient)
+            exponent = uniform(1.0, max_exponent)
+            coefficient = uniform(1, max_coefficient)
             self.terms.append(copy.deepcopy(Term(sign, operation, exponent, coefficient)))
 
         self.debug_string = self.get_string()
@@ -67,8 +67,8 @@ class Expression:
             elif chance == 1:  # and len(self.terms) < self.max_size:
                 sign = randint(0, 1)
                 operation = self.grammar[randint(0, len(self.grammar) - 1)]
-                exponent = randint(1, self.max_exponent)
-                coefficient = randint(1, self.max_coefficient)
+                exponent = uniform(1, self.max_exponent)
+                coefficient = uniform(1, self.max_coefficient)
                 self.terms.append(copy.deepcopy(Term(sign, operation, exponent, coefficient)))
 
             # for term in self.terms:
@@ -77,11 +77,11 @@ class Expression:
 
                 # chance = randint(0, 1)
                 # if chance == 0:
-                term.set_coefficient(term.coefficient - randint(-1, 1))
+                term.set_coefficient(term.coefficient - uniform(-1.0, 1.0))
 
                 # chance = randint(0, 1)
                 # if chance == 0:
-                term.set_exponent(term.exponent - randint(-1, 1))
+                term.set_exponent(term.exponent - uniform(-1.0, 1.0))
 
                 chance = randint(0, 1)
                 if chance == 0:
