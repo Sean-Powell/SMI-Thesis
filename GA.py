@@ -138,11 +138,10 @@ def create_scatter_plot(function: Expression, rank):
     for i in func_x:
         func_y.append(function.evaluate(i))
 
-    z = np.linspace(0.01, 1.8, num=1000)
+    z = np.linspace(min(x), max(x), 100)
     mu = np.log(z ** 2.17145 * (-z ** 2.82 + z + np.exp(z))) + 42.83 - 5. * np.log10(0.7)
-
-    plt.plot(mu)
-
+    plt.xlim(0, max(x))
+    plt.plot(mu, c='g')
     plt.plot(func_x, func_y, c='r', label=function.get_string())
     plt.xlabel("Redshift")
     plt.ylabel("Distance modulus")
