@@ -87,16 +87,8 @@ def process_genes_reproduction(q):
         if not reproWorkQueue.empty():
             parent_a = q.get()
             parent_b = q.get()
-            # print("-------")
-            # print("Reproduction of " + parents[j].get_string() + " and  " + parents[j + 1].get_string())
             child_a, child_b, child_c = crossover(parent_a, parent_b)
-            # child_a, child_b = one_point_cross(parent_a, parent_b)
-            # print("Child A: " + child_a.get_string())
-            # print("Child B: " + child_b.get_string())
-            # print("-------")
-            # print("Appending child a to new generation: " + child_a.get_string())
             new_generation.append(copy.deepcopy(child_a))
-            # print("Appending child b to new generation: " + child_b.get_string())
             new_generation.append(copy.deepcopy(child_b))
             new_generation.append(copy.deepcopy(child_c))
             new_generation.append(copy.deepcopy(parent_a))
@@ -270,11 +262,6 @@ def start():
         chiQueueLock.acquire()
 
         for j in population:
-            # chi_2 = fitness_function(j)
-            # chi_2_total += chi_2
-            # j.set_chi_2(chi_2)
-
-            # for multithreading
             chiWorkQueue.put(j)
 
         chiQueueLock.release()
@@ -303,8 +290,6 @@ def start():
         # get the select_amount of best parents
         for j in range(select_amount):
             parents.append(copy.deepcopy(population[j]))
-            # new_generation.append(copy.deepcopy(population[j]))
-            # new_generation_terms.append(copy.copy(population[j].get_string()))
 
         # get a select_amount of random parents that are not already parents
         for j in range(select_amount):
@@ -313,8 +298,6 @@ def start():
                 index = randint(select_amount, (len(population) - 1))
                 if index not in parents_index:
                     parents.append(copy.deepcopy(population[index]))
-                    # print("Select amount of best parents appening: " + population[j].get_string() + " to next generation")
-                    # new_generation.append(copy.deepcopy(population[j]))
                     parents_index.append(index)
                     selected = True
 
@@ -322,43 +305,20 @@ def start():
         shuffle(parents)
 
         # loop through the parents while creating the offspring for the next generation
-
-        #for multithreading
-
+        reproQueueLock.acquire()
         for parent in parents:
             reproWorkQueue.put(parent)
 
+        reproQueueLock.release()
+
         while not reproWorkQueue.empty():
             pass
-        # for j in range(0, len(parents), 2):
-        #     # print("-------")
-        #     # print("Reproduction of " + parents[j].get_string() + " and  " + parents[j + 1].get_string())
-        #     parent_a = copy.deepcopy(parents[j])
-        #     parent_b = copy.deepcopy(parents[j + 1])
-        #     child_a, child_b, child_c = crossover(parent_a, parent_b)
-        #     # child_a, child_b = one_point_cross(parent_a, parent_b)
-        #     # print("Child A: " + child_a.get_string())
-        #     # print("Child B: " + child_b.get_string())
-        #     # print("-------")
-        #     # print("Appending child a to new generation: " + child_a.get_string())
-        #     new_generation.append(copy.deepcopy(child_a))
-        #     # print("Appending child b to new generation: " + child_b.get_string())
-        #     new_generation.append(copy.deepcopy(child_b))
-        #     new_generation.append(copy.deepcopy(child_c))
-        #     new_generation.append(copy.deepcopy(parent_a))
-        #     new_generation.append(copy.deepcopy(parent_b))
-
-
-        # a, b = one_point_cross(parents[len(parents) - 1], parents[0])
-        # new_generation.append(copy.deepcopy(a))
-        # new_generation.append(copy.deepcopy(b))
 
         # loop through the new generation rolling if mutation should occur
         for j in range(len(new_generation) - 1):
             obj = copy.deepcopy(new_generation[j])
             obj.mutate()
             if new_generation[j].get_string() != obj.get_string():
-                #     print("Mutation of " + new_generation[j].get_string() + " to " + obj.get_string())
                 new_generation.append(copy.deepcopy(obj))
 
         print("Best chi^2:", population[0].get_chi_2())
@@ -377,8 +337,6 @@ def start():
             population.sort(key=lambda l: l.chi_2, reverse=False)
 
             plt.plot(number_of_gens, best, label='best', color='blue')
-            # plt.plot(number_of_gens, worst, label='worst', color='red')
-            # plt.plot(number_of_gens, average, label='average', color='black')
 
             plt.xlabel("Generation Number")
             plt.ylabel("$\\chi^2$ value")
@@ -390,7 +348,6 @@ def start():
             plt.show()
 
             n = len(population) if 10 > len(population) else 10
-            # n = len(population)
             for j in range(n):
                 print("----------")
                 file.write(population[j].get_string() + "\n")
@@ -410,7 +367,6 @@ def start():
 
         else:
             n = len(population) if 10 > len(population) else 10
-            # n = len(population)
             for j in range(n):
                 file.write(population[j].get_string() + " | " + str(population[j].get_chi_2()) + "\n")
                 print(population[j].get_string() + " | " + str(population[j].get_chi_2()))
@@ -418,7 +374,6 @@ def start():
             population = []
             for j in new_generation:
                 population.append(copy.deepcopy(j))
-            # population = copy.deepcopy(new_generation)
             end_time = time()
             generation_time = end_time - start_time
             total_time += generation_time
