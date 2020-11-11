@@ -14,6 +14,7 @@ class Expression:
     min_size = 0
     chi_2 = -1
     chance = 0
+    mutation_index = 1
     debug_string = ""
 
     def __init__(self, functions, grammar, min_size=3, max_size=6, max_exponent=3.0, max_coefficient=5.0,
@@ -77,15 +78,19 @@ class Expression:
 
                 # chance = randint(0, 1)
                 # if chance == 0:
-                term.set_coefficient(term.coefficient - uniform(-1.0, 1.0))
+                term.set_coefficient(term.coefficient - uniform((-10.0 / self.mutation_index),
+                                                                (10.0 / self.mutation_index)))
 
                 # chance = randint(0, 1)
                 # if chance == 0:
-                term.set_exponent(term.exponent - uniform(-1.0, 1.0))
+                term.set_exponent(term.exponent - uniform((-10.0 / self.mutation_index),
+                                                          (10.0 / self.mutation_index)))
 
                 chance = randint(0, 1)
                 if chance == 0:
                     term.flip_sign()
+
+                self.mutation_index += 1
                 self.terms[i] = copy.deepcopy(term)
 
     def set_terms(self, terms):

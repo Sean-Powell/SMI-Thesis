@@ -7,10 +7,15 @@ import numpy as np
 import os
 import copy
 
+import threading
+import queue
+
 POPULATION_SIZE = 500
 MUTATION_CHANCE = 40
-NUMBER_OF_GENERATIONS = 250
+NUMBER_OF_GENERATIONS = 500
 SELECTION_RATE = 25
+NUMBER_OF_CHI_THREADS = 16
+NUMBER_OF_REPRODUCTION_THREADS = 32
 
 functions = {"sin": sin, "cos": cos, "tan": tan, "ln": log}
 grammar = ['sin()', 'cos()', 'tan()', 'ln()', '']
@@ -23,9 +28,82 @@ best = []
 average = []
 worst = []
 number_of_gens = []
+processed = []
+new_generation = []
 
 time_str = str(time())
 os.mkdir(time_str)
+
+
+chiQueueLock = threading.Lock()
+chiWorkQueue = queue.Queue()
+reproQueueLock = threading.Lock()
+reproWorkQueue = queue.Queue()
+
+exitFlag = False
+chi_threads = []
+repro_threads = []
+
+
+class GeneChiThread (threading.Thread):
+    def __init__(self, threadID, q):
+        threading.Thread.__init__(self)
+        self.q = q
+        self.threadID = threadID
+
+    def run(self):
+        print("Starting chi thread " + str(self.threadID) + "...")
+        process_genes_chi(self.q)
+        print("Finished chi thread " + str(self.threadID))
+
+
+def process_genes_chi(q):
+    while not exitFlag:
+        chiQueueLock.acquire()
+        if not chiWorkQueue.empty():
+            data = q.get()
+            data.set_chi_2(fitness_function(data))
+            chiQueueLock.release()
+            processed.append(copy.deepcopy(data))
+        else:
+            chiQueueLock.release()
+
+
+class GeneReproductionThread (threading.Thread):
+    def __init__(self, threadID, q):
+        threading.Thread.__init__(self)
+        self.q = q
+        self.threadID = threadID
+
+    def run(self):
+        print("Starting reproduction thread " + str(self.threadID) + "...")
+        process_genes_reproduction(self.q)
+        print("Finished reproduction thread " + str(self.threadID))
+
+
+def process_genes_reproduction(q):
+    while not exitFlag:
+        reproQueueLock.acquire()
+        if not reproWorkQueue.empty():
+            parent_a = q.get()
+            parent_b = q.get()
+            # print("-------")
+            # print("Reproduction of " + parents[j].get_string() + " and  " + parents[j + 1].get_string())
+            child_a, child_b, child_c = crossover(parent_a, parent_b)
+            # child_a, child_b = one_point_cross(parent_a, parent_b)
+            # print("Child A: " + child_a.get_string())
+            # print("Child B: " + child_b.get_string())
+            # print("-------")
+            # print("Appending child a to new generation: " + child_a.get_string())
+            new_generation.append(copy.deepcopy(child_a))
+            # print("Appending child b to new generation: " + child_b.get_string())
+            new_generation.append(copy.deepcopy(child_b))
+            new_generation.append(copy.deepcopy(child_c))
+            new_generation.append(copy.deepcopy(parent_a))
+            new_generation.append(copy.deepcopy(parent_b))
+            reproQueueLock.release()
+        else:
+            reproQueueLock.release()
 
 
 def load_data_set():
@@ -43,7 +121,7 @@ def load_data_set():
 
 
 def fitness_function(func):
-    n = len(x) - 1  # todo check if this -1 is needed when given the data set
+    n = len(x) - 1
     chi2 = 0
     for index in range(1, n):
         chi2 += pow(((y[index] - func.evaluate(x[index])) / s[index]), 2)
@@ -151,8 +229,20 @@ def create_scatter_plot(function: Expression, rank):
 
 
 def start():
+    global processed, exitFlag, new_generation
     population = []
     total_time = 0
+
+    #create threads
+    for i in range(NUMBER_OF_CHI_THREADS):
+        thread = GeneChiThread(i, chiWorkQueue)
+        thread.start()
+        chi_threads.append(thread)
+
+    for i in range(NUMBER_OF_REPRODUCTION_THREADS):
+        thread = GeneReproductionThread(i, reproWorkQueue)
+        thread.start()
+        repro_threads.append(thread)
 
     for p in range(POPULATION_SIZE):
         population.append(copy.deepcopy(Expression(functions, grammar, mutation_chance=MUTATION_CHANCE)))
@@ -173,12 +263,26 @@ def start():
         file.write("Size of population" + str(len(population)) + "\n")
         chi_2_total = 0
 
+        exitFlag = False
+        processed = []
+
         # Evaluating the populations chi^2
+        chiQueueLock.acquire()
+
         for j in population:
-            # print(j.get_string())
-            chi_2 = fitness_function(j)
-            chi_2_total += chi_2
-            j.set_chi_2(fitness_function(j))
+            # chi_2 = fitness_function(j)
+            # chi_2_total += chi_2
+            # j.set_chi_2(chi_2)
+
+            # for multithreading
+            chiWorkQueue.put(j)
+
+        chiQueueLock.release()
+
+        while not chiWorkQueue.empty():
+            pass
+
+        population = processed
 
         # sorting the population based on its chi^2 with the lowest first
         population.sort(key=lambda l: l.chi_2, reverse=False)
@@ -195,7 +299,6 @@ def start():
         parents = []
         parents_index = []
         new_generation = []
-        new_generation_terms = []
 
         # get the select_amount of best parents
         for j in range(select_amount):
@@ -219,27 +322,31 @@ def start():
         shuffle(parents)
 
         # loop through the parents while creating the offspring for the next generation
-        for j in range(0, len(parents), 2):
-            # print("-------")
-            # print("Reproduction of " + parents[j].get_string() + " and  " + parents[j + 1].get_string())
-            parent_a = copy.deepcopy(parents[j])
-            parent_b = copy.deepcopy(parents[j + 1])
-            child_a, child_b, child_c = crossover(parent_a, parent_b)
-            # child_a, child_b = one_point_cross(parent_a, parent_b)
-            # print("Child A: " + child_a.get_string())
-            # print("Child B: " + child_b.get_string())
-            # print("-------")
-            # print("Appending child a to new generation: " + child_a.get_string())
-            new_generation.append(copy.deepcopy(child_a))
-            new_generation_terms.append(copy.copy(child_a.get_string()))
-            # print("Appending child b to new generation: " + child_b.get_string())
-            new_generation.append(copy.deepcopy(child_b))
-            new_generation_terms.append(copy.copy(child_b.get_string()))
-            new_generation.append(copy.deepcopy(child_c))
-            new_generation_terms.append(copy.copy(child_c.get_string()))
 
-            new_generation.append(copy.deepcopy(parent_a))
-            new_generation.append(copy.deepcopy(parent_b))
+        #for multithreading
+
+        for parent in parents:
+            reproWorkQueue.put(parent)
+
+        while not reproWorkQueue.empty():
+            pass
+        # for j in range(0, len(parents), 2):
+        #     # print("-------")
+        #     # print("Reproduction of " + parents[j].get_string() + " and  " + parents[j + 1].get_string())
+        #     parent_a = copy.deepcopy(parents[j])
+        #     parent_b = copy.deepcopy(parents[j + 1])
+        #     child_a, child_b, child_c = crossover(parent_a, parent_b)
+        #     # child_a, child_b = one_point_cross(parent_a, parent_b)
+        #     # print("Child A: " + child_a.get_string())
+        #     # print("Child B: " + child_b.get_string())
+        #     # print("-------")
+        #     # print("Appending child a to new generation: " + child_a.get_string())
+        #     new_generation.append(copy.deepcopy(child_a))
+        #     # print("Appending child b to new generation: " + child_b.get_string())
+        #     new_generation.append(copy.deepcopy(child_b))
+        #     new_generation.append(copy.deepcopy(child_c))
+        #     new_generation.append(copy.deepcopy(parent_a))
+        #     new_generation.append(copy.deepcopy(parent_b))
 
 
         # a, b = one_point_cross(parents[len(parents) - 1], parents[0])
@@ -253,11 +360,6 @@ def start():
             if new_generation[j].get_string() != obj.get_string():
                 #     print("Mutation of " + new_generation[j].get_string() + " to " + obj.get_string())
                 new_generation.append(copy.deepcopy(obj))
-
-        # for j in new_generation:
-        #     chance = randint(0, 100)
-        #     if chance <= MUTATION_CHANCE:
-        #         j.mutation()
 
         print("Best chi^2:", population[0].get_chi_2())
         best.append(population[0].get_chi_2())
@@ -281,7 +383,7 @@ def start():
             plt.xlabel("Generation Number")
             plt.ylabel("$\\chi^2$ value")
 
-            plt.xticks(np.arange(0, NUMBER_OF_GENERATIONS + 1, step=10))
+            plt.xticks(np.arange(0, NUMBER_OF_GENERATIONS + 1, step=50))
 
             plt.legend()
             plt.savefig(time_str + "/Generations_chi.png")
@@ -298,6 +400,13 @@ def start():
                 create_scatter_plot(population[j], j)
 
             file.close()
+            exitFlag = True
+
+            for t in chi_threads:
+                t.join()
+
+            for t in repro_threads:
+                t.join()
 
         else:
             n = len(population) if 10 > len(population) else 10
@@ -314,8 +423,6 @@ def start():
             generation_time = end_time - start_time
             total_time += generation_time
             file.write("Generation took " + str(generation_time) + " seconds\n")
-            if len(new_generation_terms) == len(set(new_generation_terms)):
-                print("Generation contains no duplicates")
             print("Generation took", generation_time, "seconds")
             print("----------")
 
