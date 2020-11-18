@@ -1,5 +1,5 @@
 from Expression import Expression
-from math import sin, cos, tan, log, pow, ceil
+from math import sin, cos, tan, log, pow, ceil, e
 from random import shuffle, randint
 from time import time
 import matplotlib.pyplot as plt
@@ -12,13 +12,13 @@ import queue
 
 POPULATION_SIZE = 500
 MUTATION_CHANCE = 40
-NUMBER_OF_GENERATIONS = 500
+NUMBER_OF_GENERATIONS = 150
 SELECTION_RATE = 25
 NUMBER_OF_CHI_THREADS = 16
 NUMBER_OF_REPRODUCTION_THREADS = 32
 
-functions = {"sin": sin, "cos": cos, "tan": tan, "ln": log}
-grammar = ['sin()', 'cos()', 'tan()', 'ln()', '']
+functions = {"sin": sin, "cos": cos, "tan": tan, "ln": log, "e": e}
+grammar = ['sin()', 'cos()', 'tan()', 'ln()', 'e[]', '']
 
 y = []
 x = []
@@ -34,7 +34,7 @@ new_generation = []
 time_str = str(time())
 os.mkdir(time_str)
 
-
+# todo create a thread for performing mutation
 chiQueueLock = threading.Lock()
 chiWorkQueue = queue.Queue()
 reproQueueLock = threading.Lock()
@@ -113,7 +113,7 @@ def load_data_set():
 
 
 def fitness_function(func):
-    n = len(x) - 1
+    n = len(x)
     chi2 = 0
     for index in range(1, n):
         chi2 += pow(((y[index] - func.evaluate(x[index])) / s[index]), 2)
@@ -342,7 +342,7 @@ def start():
             plt.ylabel("$\\chi^2$ value")
 
             plt.xticks(np.arange(0, NUMBER_OF_GENERATIONS + 1, step=50))
-
+            plt.ylim([0, 10000])
             plt.legend()
             plt.savefig(time_str + "/Generations_chi.png")
             plt.show()

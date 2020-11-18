@@ -20,7 +20,12 @@ class Term:
             expresion = self.sign + str(self.coefficient) + "*(" + self.operation[:(index + 1)] + str(x) + "**" +\
                         str(self.exponent) + self.operation[(index + 1):] + ")"
         else:
-            expresion = self.sign + str(self.coefficient) + "*(" + str(x) + "**" + str(self.exponent) + ")"
+            index = self.operation.find("[")
+            if index != -1:
+                expresion = self.sign + str(self.coefficient) + "*" + self.operation[:index] + "**("  + str(x) + \
+                            "*" + str(self.exponent) + ")"
+            else:
+                expresion = self.sign + str(self.coefficient) + "*(" + str(x) + "**" + str(self.exponent) + ")"
         return expresion
 
     def flip_sign(self):

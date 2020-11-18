@@ -17,7 +17,7 @@ class Expression:
     mutation_index = 1
     debug_string = ""
 
-    def __init__(self, functions, grammar, min_size=3, max_size=6, max_exponent=3.0, max_coefficient=5.0,
+    def __init__(self, functions, grammar, min_size=1, max_size=6, max_exponent=3.0, max_coefficient=5.0,
                  mutation_chance=10):
         self.functions = functions
         self.grammar = grammar
@@ -65,7 +65,7 @@ class Expression:
             if chance == 0 and len(self.terms) > self.min_size:
                 index = randint(0, (len(self.terms) - 1))
                 self.terms.remove(self.terms[index])
-            elif chance == 1:  # and len(self.terms) < self.max_size:
+            elif chance == 1 and len(self.terms) < self.max_size:
                 sign = randint(0, 1)
                 operation = self.grammar[randint(0, len(self.grammar) - 1)]
                 exponent = uniform(1, self.max_exponent)
@@ -75,7 +75,8 @@ class Expression:
             # for term in self.terms:
             for i in range(len(self.terms) - 1):
                 term = self.terms[i]
-
+                # todo find a way to tie this value to the chi^2 value so that the closer it gets to the solution
+                #  the smaller the mutation value is
                 # chance = randint(0, 1)
                 # if chance == 0:
                 term.set_coefficient(term.coefficient - uniform((-10.0 / self.mutation_index),
