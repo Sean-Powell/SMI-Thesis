@@ -93,6 +93,8 @@ class Expression:
 
                 self.mutation_index += 1
                 self.terms[i] = copy.deepcopy(term)
+            return True
+        return False
 
     def set_terms(self, terms):
         self.terms = copy.deepcopy(terms)

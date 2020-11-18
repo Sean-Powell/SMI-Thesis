@@ -6,16 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import copy
-
 import threading
 import queue
 
 POPULATION_SIZE = 500
 MUTATION_CHANCE = 40
-NUMBER_OF_GENERATIONS = 150
+NUMBER_OF_GENERATIONS = 500
 SELECTION_RATE = 25
-NUMBER_OF_CHI_THREADS = 16
-NUMBER_OF_REPRODUCTION_THREADS = 32
+NUMBER_OF_CHI_THREADS = 8
+NUMBER_OF_REPRODUCTION_THREADS = 16
+NUMBER_OF_MUTATION_THREADS = 48
 
 functions = {"sin": sin, "cos": cos, "tan": tan, "ln": log, "e": e}
 grammar = ['sin()', 'cos()', 'tan()', 'ln()', 'e[]', '']
@@ -25,7 +25,6 @@ x = []
 s = []
 
 best = []
-average = []
 worst = []
 number_of_gens = []
 processed = []
@@ -34,15 +33,17 @@ new_generation = []
 time_str = str(time())
 os.mkdir(time_str)
 
-# todo create a thread for performing mutation
 chiQueueLock = threading.Lock()
 chiWorkQueue = queue.Queue()
-reproQueueLock = threading.Lock()
-reproWorkQueue = queue.Queue()
+reproductionQueueLock = threading.Lock()
+reproductionWorkQueue = queue.Queue()
+mutationQueueLock = threading.Lock()
+mutationWorkQueue = queue.Queue()
 
 exitFlag = False
 chi_threads = []
 repro_threads = []
+mutation_threads = []
 
 
 class GeneChiThread (threading.Thread):
@@ -62,8 +63,8 @@ def process_genes_chi(q):
         chiQueueLock.acquire()
         if not chiWorkQueue.empty():
             data = q.get()
-            data.set_chi_2(fitness_function(data))
             chiQueueLock.release()
+            data.set_chi_2(fitness_function(data))
             processed.append(copy.deepcopy(data))
         else:
             chiQueueLock.release()
@@ -83,19 +84,48 @@ class GeneReproductionThread (threading.Thread):
 
 def process_genes_reproduction(q):
     while not exitFlag:
-        reproQueueLock.acquire()
-        if not reproWorkQueue.empty():
+        reproductionQueueLock.acquire()
+        if not reproductionWorkQueue.empty():
             parent_a = q.get()
             parent_b = q.get()
+            reproductionQueueLock.release()
             child_a, child_b, child_c = crossover(parent_a, parent_b)
             new_generation.append(copy.deepcopy(child_a))
             new_generation.append(copy.deepcopy(child_b))
             new_generation.append(copy.deepcopy(child_c))
             new_generation.append(copy.deepcopy(parent_a))
             new_generation.append(copy.deepcopy(parent_b))
-            reproQueueLock.release()
         else:
-            reproQueueLock.release()
+            reproductionQueueLock.release()
+
+
+class MutationThread(threading.Thread):
+    def __init__(self, threadID, q):
+        threading.Thread.__init__(self)
+        self.q = q
+        self.threadID = threadID
+
+    def run(self):
+        print("Starting mutation thread " + str(self.threadID) + "...")
+        process_genes_mutation(self.q)
+        print("Finished mutation thread " + str(self.threadID))
+
+
+def process_genes_mutation(q):
+    # obj = copy.deepcopy(new_generation[j])
+    # obj.mutate()
+    # if new_generation[j].get_string() != obj.get_string():
+    #     new_generation.append(copy.deepcopy(obj))
+    while not exitFlag:
+        mutationQueueLock.acquire()
+        if not mutationWorkQueue.empty():
+            obj = q.get()
+            mutationQueueLock.release()
+            mutated = obj.mutate()
+            if mutated:
+                new_generation.append(copy.deepcopy(obj))
+        else:
+            mutationQueueLock.release()
 
 
 def load_data_set():
@@ -232,9 +262,14 @@ def start():
         chi_threads.append(thread)
 
     for i in range(NUMBER_OF_REPRODUCTION_THREADS):
-        thread = GeneReproductionThread(i, reproWorkQueue)
+        thread = GeneReproductionThread(i, reproductionWorkQueue)
         thread.start()
         repro_threads.append(thread)
+
+    for i in range(NUMBER_OF_MUTATION_THREADS):
+        thread = MutationThread(i, mutationWorkQueue)
+        thread.start()
+        mutation_threads.append(thread)
 
     for p in range(POPULATION_SIZE):
         population.append(copy.deepcopy(Expression(functions, grammar, mutation_chance=MUTATION_CHANCE)))
@@ -253,7 +288,6 @@ def start():
         print("Size of population", len(population))
         file.write("--- Generation" + str(i + 1) + "---\n")
         file.write("Size of population" + str(len(population)) + "\n")
-        chi_2_total = 0
 
         exitFlag = False
         processed = []
@@ -305,28 +339,28 @@ def start():
         shuffle(parents)
 
         # loop through the parents while creating the offspring for the next generation
-        reproQueueLock.acquire()
+        reproductionQueueLock.acquire()
         for parent in parents:
-            reproWorkQueue.put(parent)
+            reproductionWorkQueue.put(parent)
 
-        reproQueueLock.release()
+        reproductionQueueLock.release()
 
-        while not reproWorkQueue.empty():
+        while not reproductionWorkQueue.empty():
             pass
 
-        # loop through the new generation rolling if mutation should occur
+        mutationQueueLock.acquire()
         for j in range(len(new_generation) - 1):
-            obj = copy.deepcopy(new_generation[j])
-            obj.mutate()
-            if new_generation[j].get_string() != obj.get_string():
-                new_generation.append(copy.deepcopy(obj))
+            mutationWorkQueue.put(copy.deepcopy(new_generation[j]))
+
+        mutationQueueLock.release()
+
+        while not mutationWorkQueue.empty():
+            pass
 
         print("Best chi^2:", population[0].get_chi_2())
         best.append(population[0].get_chi_2())
         print("worst chi^2:", population[len(population) - 1].get_chi_2())
         worst.append(population[len(population) - 1].get_chi_2())
-        print("Average chi^2:", (chi_2_total / (len(population) - 1)))
-        average.append((chi_2_total / (len(population) - 1)))
         number_of_gens.append(i)
 
         if NUMBER_OF_GENERATIONS - 1 == i:
