@@ -14,7 +14,6 @@ class Expression:
     min_size = 0
     chi_2 = -1
     chance = 0
-    mutation_index = 1
     debug_string = ""
 
     def __init__(self, functions, grammar, min_size=1, max_size=6, max_exponent=3.0, max_coefficient=5.0,
@@ -28,6 +27,7 @@ class Expression:
         self.chi_2 = 0
         self.max_size = max_size
         self.min_size = min_size
+        self.mutation_index = 1
 
         size = randint(min_size, max_size)
         for _ in range(size):
@@ -40,9 +40,10 @@ class Expression:
         self.debug_string = self.get_string()
 
     def evaluate(self, x):
-        ans = 0
+        full_string = ""
         for term in self.terms:
-            ans += float(eval(term.build_term(x), self.functions))
+            full_string += term.build_term(x)
+        ans = float(eval(full_string, self.functions))
         return ans
 
     def print(self):
@@ -76,21 +77,18 @@ class Expression:
             for i in range(len(self.terms) - 1):
                 term = self.terms[i]
                 # todo find a way to tie this value to the chi^2 value so that the closer it gets to the solution
-                #  the smaller the mutation value is
-                # chance = randint(0, 1)
-                # if chance == 0:
-                term.set_coefficient(term.coefficient - uniform((-10.0 / self.mutation_index),
-                                                                (10.0 / self.mutation_index)))
+                #  the smaller the mutate value is
 
-                # chance = randint(0, 1)
-                # if chance == 0:
-                term.set_exponent(term.exponent - uniform((-10.0 / self.mutation_index),
-                                                          (10.0 / self.mutation_index)))
+                divisor = self.mutation_index
+                amount = 10 / divisor
+                term.set_coefficient(term.coefficient - uniform(-amount, amount))
+                term.set_exponent(term.exponent - uniform(-amount, amount))
 
                 chance = randint(0, 1)
                 if chance == 0:
                     term.flip_sign()
 
+                term.update_strings()
                 self.mutation_index += 1
                 self.terms[i] = copy.deepcopy(term)
             return True

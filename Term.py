@@ -13,20 +13,36 @@ class Term:
         self.operation = operation
         self.exponent = exponent
         self.coefficient = coefficient
+        self.pre_string = ""
+        self.post_string = ""
+        self.update_strings()
 
     def build_term(self, x):
         index = self.operation.find("(")
         if index != -1:
-            expresion = self.sign + str(self.coefficient) + "*(" + self.operation[:(index + 1)] + str(x) + "**" +\
-                        str(self.exponent) + self.operation[(index + 1):] + ")"
+            expresion = self.pre_string + str(x) + self.post_string
         else:
             index = self.operation.find("[")
             if index != -1:
-                expresion = self.sign + str(self.coefficient) + "*" + self.operation[:index] + "**("  + str(x) + \
-                            "*" + str(self.exponent) + ")"
+                expresion = self.pre_string + str(x) + self.post_string
             else:
-                expresion = self.sign + str(self.coefficient) + "*(" + str(x) + "**" + str(self.exponent) + ")"
+                expresion = self.pre_string + str(x) + self.post_string
+
         return expresion
+
+    def update_strings(self):
+        index = self.operation.find("(")
+        if index != -1:
+            self.pre_string = self.sign + str(self.coefficient) + "*(" + self.operation[:(index + 1)]
+            self.post_string = "**" + str(self.exponent) + self.operation[(index + 1):] + ")"
+        else:
+            index = self.operation.find("[")
+            if index != -1:
+                self.pre_string = self.sign + str(self.coefficient) + "*" + self.operation[:index] + "**("
+                self.post_string = "*" + str(self.exponent) + ")"
+            else:
+                self.pre_string = self.sign + str(self.coefficient) + "*("
+                self.post_string = "**" + str(self.exponent) + ")"
 
     def flip_sign(self):
         if self.sign == "":

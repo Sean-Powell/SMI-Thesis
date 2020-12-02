@@ -11,11 +11,11 @@ import queue
 
 POPULATION_SIZE = 500
 MUTATION_CHANCE = 40
-NUMBER_OF_GENERATIONS = 500
+NUMBER_OF_GENERATIONS = 5
 SELECTION_RATE = 25
-NUMBER_OF_CHI_THREADS = 8
-NUMBER_OF_REPRODUCTION_THREADS = 16
-NUMBER_OF_MUTATION_THREADS = 48
+NUMBER_OF_CHI_THREADS = 64
+NUMBER_OF_REPRODUCTION_THREADS = 4
+NUMBER_OF_MUTATION_THREADS = 16
 
 functions = {"sin": sin, "cos": cos, "tan": tan, "ln": log, "e": e}
 grammar = ['sin()', 'cos()', 'tan()', 'ln()', 'e[]', '']
@@ -106,9 +106,9 @@ class MutationThread(threading.Thread):
         self.threadID = threadID
 
     def run(self):
-        print("Starting mutation thread " + str(self.threadID) + "...")
+        print("Starting mutate thread " + str(self.threadID) + "...")
         process_genes_mutation(self.q)
-        print("Finished mutation thread " + str(self.threadID))
+        print("Finished mutate thread " + str(self.threadID))
 
 
 def process_genes_mutation(q):
@@ -142,11 +142,14 @@ def load_data_set():
             s.append(float(line_split[3]))
 
 
-def fitness_function(func):
+def fitness_function(func : Expression):
     n = len(x)
     chi2 = 0
     for index in range(1, n):
-        chi2 += pow(((y[index] - func.evaluate(x[index])) / s[index]), 2)
+        try:
+            chi2 += pow(((y[index] - func.evaluate(x[index])) / s[index]), 2)
+        except Exception:
+            print(func.get_string())
     return chi2
 
 
@@ -239,9 +242,10 @@ def create_scatter_plot(function: Expression, rank):
         func_y.append(function.evaluate(i))
 
     z = np.linspace(min(x), max(x), 100)
-    mu = np.log(z ** 2.17145 * (-z ** 2.82 + z + np.exp(z))) + 42.83 - 5. * np.log10(0.7)
+    mu = np.log((z**2.17145) * ((-z ** 2.82) + z + np.exp(z))) + 42.83 - 5. * np.log10(0.7)
+    plt.plot(z, mu, c='g')
     plt.xlim(0, max(x))
-    plt.plot(mu, c='g')
+
     plt.plot(func_x, func_y, c='r', label=function.get_string())
     plt.xlabel("Redshift")
     plt.ylabel("Distance modulus")
@@ -255,7 +259,7 @@ def start():
     population = []
     total_time = 0
 
-    #create threads
+    # create threads
     for i in range(NUMBER_OF_CHI_THREADS):
         thread = GeneChiThread(i, chiWorkQueue)
         thread.start()
@@ -293,6 +297,7 @@ def start():
         processed = []
 
         # Evaluating the populations chi^2
+        chi_start = time()
         chiQueueLock.acquire()
 
         for j in population:
@@ -303,6 +308,7 @@ def start():
         while not chiWorkQueue.empty():
             pass
 
+        chi_end = time()
         population = processed
 
         # sorting the population based on its chi^2 with the lowest first
@@ -338,6 +344,7 @@ def start():
         # shuffle the list so parents are matched up randomly
         shuffle(parents)
 
+        repro_start = time()
         # loop through the parents while creating the offspring for the next generation
         reproductionQueueLock.acquire()
         for parent in parents:
@@ -348,6 +355,9 @@ def start():
         while not reproductionWorkQueue.empty():
             pass
 
+        repro_end = time()
+
+        mutation_start = time()
         mutationQueueLock.acquire()
         for j in range(len(new_generation) - 1):
             mutationWorkQueue.put(copy.deepcopy(new_generation[j]))
@@ -356,6 +366,8 @@ def start():
 
         while not mutationWorkQueue.empty():
             pass
+
+        mutation_end = time()
 
         print("Best chi^2:", population[0].get_chi_2())
         best.append(population[0].get_chi_2())
@@ -382,6 +394,8 @@ def start():
             plt.show()
 
             n = len(population) if 10 > len(population) else 10
+            file.write("Total time taken:" + str(total_time) + "seconds\n")
+            file.write("Best 10:\n")
             for j in range(n):
                 print("----------")
                 file.write(population[j].get_string() + "\n")
@@ -412,6 +426,9 @@ def start():
             generation_time = end_time - start_time
             total_time += generation_time
             file.write("Generation took " + str(generation_time) + " seconds\n")
+            print("Chi^2 time:", (chi_end - chi_start))
+            print("Reproduction time:", (repro_end - repro_start))
+            print("Mutation time:", (mutation_end - mutation_start))
             print("Generation took", generation_time, "seconds")
             print("----------")
 
