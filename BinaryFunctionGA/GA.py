@@ -1,5 +1,5 @@
 from random import randint, uniform, shuffle
-from math import modf, pow, floor, ceil
+from math import modf, pow, floor, ceil, sin, cos, tan, log, e
 from matplotlib import pyplot as plt
 import numpy as np
 from time import time
@@ -13,14 +13,15 @@ EXPONENT_MIN = 0
 EXPONENT_MAX = 15
 COEFFICIENT_BIT_LENGTH = 8
 EXPONENT_BIT_LENGTH = 4
+FUNCTION_BIT_LENGTH = 3
 FLOAT_PRECISION_LENGTH = 10
 MAX_NUMBER_OF_MUTATIONS = 40
-DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/dataset.txt"
+DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/SCPUnion_mu_vs_z.txt"
 POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
-GENERATION_COUNT = 3000
-GRAPH_STEP = 500
+GENERATION_COUNT = 6000
+GRAPH_STEP = GENERATION_COUNT // 10
 
 _float_bit_length = -1  # is automatically set by calculate_float_bit_length()
 _term_bit_length = -1  # is automatically set by calculate_term_bit_length()
@@ -35,39 +36,19 @@ time_str = str(time())
 mkdir(time_str)
 file_f = open(time_str + "/output.txt", "w")
 
-# Fitness function took 17.435699224472046 seconds
-# Sorting took 0.00400090217590332 seconds
-# Pruning took 0.002001047134399414 seconds
-# Parent selection took 0.0009999275207519531 seconds
-# Reproduction took 0.017003536224365234 seconds
-# Mutation took 0.0050013065338134766 seconds
 
 def read_dataset():
     f = open(DATASET_PATH)
     i = 0
     for line in f:
-        if i < 1:
+        if i < 4:
             i += 1
         else:
             line = line.strip()
-            line_split = line.split(" ")
-
-            x_string = line_split[1]
-            index = x_string.find("(")
-            x_value = x_string[:index]
-            x.append(float(x_value))
-
-            y_string = line_split[5]
-            index = x_string.find("(")
-            y_value = y_string[:index + 1]
-            s_value = y_string[index + 2: len(y_string) - 1]
-            y.append(float(y_value))
-            s.append(float(s_value))
-
-            # line_split = line.split("\t")
-            # x.append(float(line_split[1]))
-            # y.append(float(line_split[2]))
-            # s.append(float(line_split[3]))
+            line_split = line.split("\t")
+            x.append(float(line_split[1]))
+            y.append(float(line_split[2]))
+            s.append(float(line_split[3]))
 
 
 def convert_to_binary(to_covert, bit_length):
@@ -92,6 +73,7 @@ def calculate_term_bit_length():
     length += (2 * _float_bit_length)
     length += COEFFICIENT_BIT_LENGTH
     length += EXPONENT_BIT_LENGTH
+    length += FUNCTION_BIT_LENGTH
     _term_bit_length = length
 
 
@@ -107,6 +89,47 @@ def create_number(min_number, max_number, bit_length):
     i_bin = convert_to_binary(i, bit_length)
     d_bin = convert_to_binary(d, _float_bit_length)
     return number_sign, i_bin, d_bin
+
+
+def create_function():
+    #  sin - 1
+    #  cos - 2
+    #  tan - 3
+    #  ln  - 4
+    #  e   - 5
+    #  x   - any other
+    index = randint(0, (2 ** FUNCTION_BIT_LENGTH) - 1)
+    return convert_to_binary(index, FUNCTION_BIT_LENGTH)
+
+
+def decode_function_value(n, value, exponent):
+    d = string_to_decimal(n)
+    if d == 1:
+        return sin(value ** exponent)
+    if d == 2:
+        return cos(value ** exponent)
+    if d == 3:
+        return tan(value ** exponent)
+    if d == 4:
+        return log(value ** exponent) # stops a log error in the case of x being 0
+    if d == 5:
+        return e ** (value + exponent)
+    return value ** exponent
+
+
+def decode_function_string(n, exponent):
+    d = string_to_decimal(n)
+    if d == 1:
+        return 'sin(x**' + str(exponent) + ")"
+    if d == 2:
+        return 'cos(x**' + str(exponent) + ")"
+    if d == 3:
+        return 'tan(x**' + str(exponent) + ")"
+    if d == 4:
+        return 'log(x**' + str(exponent) + ")"
+    if d == 5:
+        return 'e**(x+' + str(exponent) + ")"
+    return 'x**' + str(exponent)
 
 
 def string_to_decimal(n):
@@ -142,13 +165,16 @@ def create_chromosome():
 def chromosome_to_string(chromosome):
     index = 0
     output = ""
-    while index < len(chromosome):
+    while index < len(chromosome) - 1:
         coeff_sign = int(chromosome[index:index+1])
         index += 1
         coeff_i = chromosome[index: index + COEFFICIENT_BIT_LENGTH]
         index += COEFFICIENT_BIT_LENGTH
         coeff_d = chromosome[index: index + _float_bit_length]
         index += _float_bit_length
+
+        func_binary = chromosome[index: index + FUNCTION_BIT_LENGTH]
+        index += FUNCTION_BIT_LENGTH
 
         exp_sign = int(chromosome[index:index + 1])
         index += 1
@@ -166,16 +192,18 @@ def chromosome_to_string(chromosome):
             exp_sign = "-"
         else:
             exp_sign = "+"
-        
-        output += (coeff_sign + binary_to_float(coeff_i, coeff_d) + "x^" + exp_sign + binary_to_float(exp_i, exp_d))
 
+        exp = float(exp_sign + binary_to_float(exp_i, exp_d))
+        func_string = decode_function_string(func_binary, exp)
+        output += (coeff_sign + binary_to_float(coeff_i, coeff_d) + func_string)
     return output
 
 
 def evaluate_chromosome(chromosome, value):
+    # todo add function decoding support
     index = 0
     ans = 0
-    while index < len(chromosome):
+    while index < (len(chromosome) - 1):
         coeff_sign = int(chromosome[index:index+1])
         index += 1
         coeff_i = chromosome[index: index + COEFFICIENT_BIT_LENGTH]
@@ -183,9 +211,12 @@ def evaluate_chromosome(chromosome, value):
         coeff_d = chromosome[index: index + _float_bit_length]
         index += _float_bit_length
 
+        func_binary = chromosome[index: index + FUNCTION_BIT_LENGTH]
+        index += FUNCTION_BIT_LENGTH
         try:
             exp_sign = int(chromosome[index:index + 1])
         except ValueError:
+            # i have no idea why this causes an error or why this occurs
             exp_sign = 0
         index += 1
         exp_i = chromosome[index: index + EXPONENT_BIT_LENGTH]
@@ -205,7 +236,8 @@ def evaluate_chromosome(chromosome, value):
 
         coeff = float(coeff_sign + binary_to_float(coeff_i, coeff_d))
         exp = float(exp_sign + binary_to_float(exp_i, exp_d))
-        ans += (coeff * (value ** exp))
+        func = decode_function_value(func_binary, value, exp)
+        ans += func * coeff
 
     return ans
 
@@ -218,9 +250,11 @@ def remove_term(chromosome):
 def add_term(chromosome):
     coeff_sign, coeff_i, coeff_d = create_number(COEFFICIENT_MIN, COEFFICIENT_MAX, COEFFICIENT_BIT_LENGTH)
     exp_sign, exp_i, exp_d = create_number(EXPONENT_MIN, EXPONENT_MAX, EXPONENT_BIT_LENGTH)
+    function = create_function()
     chromosome += str(coeff_sign)
     chromosome += str(coeff_i)
     chromosome += str(coeff_d)
+    chromosome += str(function)
     chromosome += str(exp_sign)
     chromosome += str(exp_i)
     chromosome += str(exp_d)
@@ -369,20 +403,17 @@ def start():
         population_chi_values = []
         next_generation = []
         best_ten = []
-
-        s_t = time()
         #  evaluate the population
         for pop in population:
-            population_chi_values.append(fitness_function(pop))
-        e_t = time()
+            try:
+                population_chi_values.append(fitness_function(pop))
+            except TypeError:
+                population_chi_values.append(fitness_function(pop))
+                print('wtf')
 
-        print("Fitness function took " + str(e_t - s_t) + " seconds")
-        s_t = time()
         population, population_chi_values = merge_sort(population, population_chi_values)
         best_chi_squared.append(population_chi_values[0])
-        e_t = time()
-        print("Sorting took " + str(e_t - s_t) + " seconds")
-        s_t = time()
+
         for j in range(10):
             best_ten.append(population[j])
 
@@ -390,9 +421,7 @@ def start():
         while len(population) > POPULATION_SIZE:
             population.remove(population[len(population) - 1])
             population_chi_values.remove(population_chi_values[len(population_chi_values) - 1])
-        e_t = time()
-        print("Pruning took " + str(e_t - s_t) + " seconds")
-        s_t = time()
+
         selection_amount = ceil((len(population) / 100) * SELECTION_RATE)
         parents = population[:selection_amount]
 
@@ -402,17 +431,12 @@ def start():
             population.remove(population[index])
 
         shuffle(parents)
-        e_t = time()
-        print("Parent selection took " + str(e_t - s_t) + " seconds")
-        s_t = time()
+
         for j in range(0, len(parents), 2):
             child = crossover(parents[j], parents[j + 1])
             next_generation.append(child)
             next_generation.append(parents[j])
             next_generation.append(parents[j + 1])
-        e_t = time()
-        print("Reproduction took " + str(e_t - s_t) + " seconds")
-        s_t = time()
 
         mutated = []
         for pop in next_generation:
@@ -422,8 +446,6 @@ def start():
 
         for pop in mutated:
             next_generation.append(pop)
-        e_t = time()
-        print("Mutation took " + str(e_t - s_t) + " seconds")
 
         end_time = time()
 
@@ -461,3 +483,6 @@ read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
 start()
+
+# todo encode different functions
+# todo decode the different functions
