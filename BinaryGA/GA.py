@@ -6,7 +6,7 @@ from time import time
 from os import mkdir
 
 MIN_LENGTH = 2
-MAX_LENGTH = 5
+MAX_LENGTH = 10
 COEFFICIENT_MIN = 0
 COEFFICIENT_MAX = 20
 EXPONENT_MIN = 0
@@ -19,8 +19,12 @@ DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/dataset.txt"
 POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
-GENERATION_COUNT = 3000
+GENERATION_COUNT = 20000
 GRAPH_STEP = 500
+Y_LIM = 10000
+X_EXTENSION = 0.2 # How much past the max x value will the graph be extended
+BIN_SIZE = 0.2
+IMPROVEMENT_CUTOFF = -1 # after how many generations without improvement should it stop, set to -1 for it to never happen
 
 _float_bit_length = -1  # is automatically set by calculate_float_bit_length()
 _term_bit_length = -1  # is automatically set by calculate_term_bit_length()
@@ -172,7 +176,7 @@ def chromosome_to_string(chromosome):
     return output
 
 
-def evaluate_chromosome(chromosome, value):
+def evaluate_chromosome(chromosome, value): # todo rewrite so that it only
     index = 0
     ans = 0
     while index < len(chromosome):
@@ -208,6 +212,44 @@ def evaluate_chromosome(chromosome, value):
         ans += (coeff * (value ** exp))
 
     return ans
+
+
+def build_chromosome(chromosome):
+    index = 0
+    parts = []
+    while index < len(chromosome):
+        coeff_sign = int(chromosome[index:index + 1])
+        index += 1
+        coeff_i = chromosome[index: index + COEFFICIENT_BIT_LENGTH]
+        index += COEFFICIENT_BIT_LENGTH
+        coeff_d = chromosome[index: index + _float_bit_length]
+        index += _float_bit_length
+
+        try:
+            exp_sign = int(chromosome[index:index + 1])
+        except ValueError:
+            exp_sign = 0
+        index += 1
+        exp_i = chromosome[index: index + EXPONENT_BIT_LENGTH]
+        index += EXPONENT_BIT_LENGTH
+        exp_d = chromosome[index: index + _float_bit_length]
+        index += _float_bit_length
+
+        if coeff_sign:
+            coeff_sign = "-"
+        else:
+            coeff_sign = "+"
+
+        if exp_sign:
+            exp_sign = "-"
+        else:
+            exp_sign = "+"
+
+        coeff = float(coeff_sign + binary_to_float(coeff_i, coeff_d))
+        exp = float(exp_sign + binary_to_float(exp_i, exp_d))
+        parts.append(coeff)
+        parts.append(exp)
+    return parts
 
 
 def remove_term(chromosome):
@@ -264,8 +306,16 @@ def mutate(chromosome):  # todo add ability to remove and add terms during the m
 
 def fitness_function(chromosome):
     chi_2 = 0
+    parts = build_chromosome(chromosome)
+    # ans += (coeff * (value ** exp))
+
     for index in range(len(x)):
-        chi_2 += pow(((y[index] - evaluate_chromosome(chromosome, x[index])) / s[index]), 2)
+        value = x[index]
+        ans = 0
+        for j in range(0, len(parts), 2):
+            ans += parts[j] * (value ** parts[j + 1])
+        # chi_2 += pow(((y[index] - evaluate_chromosome(chromosome, x[index])) / s[index]), 2)
+        chi_2 += pow(((y[index] - ans) / s[index]), 2)
     return chi_2
 
 
@@ -282,7 +332,7 @@ def graph_chromosome(chromosome, index):
     mu = np.log((z ** 2.17145) * ((-z ** 2.82) + z + np.exp(z))) + 42.83 - 5. * np.log10(0.7)
     plt.plot(z, mu, c='g')
     plt.plot(func_x, func_y, c='r')
-    plt.xlim(0, max(x) + 0.2)
+    plt.xlim(0, max(x) + X_EXTENSION)
     plt.xlabel("Redshift")
     plt.ylabel("Distance modulus")
     plt.title("Genetic Algorithm Rank:" + str(index))
@@ -300,7 +350,7 @@ def graph_best_chi():
     plt.ylabel("$\\chi^2$ value")
 
     plt.xticks(np.arange(0, GENERATION_COUNT, step=GRAPH_STEP))
-    plt.ylim([0, 10000])
+    plt.ylim([0, Y_LIM])
     plt.legend()
     plt.savefig(time_str + "/generations_chi.png")
     plt.show()
@@ -353,9 +403,89 @@ def merge_lists(pop_l, chi_l, pop_r, chi_r):
     return pop, chi
 
 
+def random_distribution_number(distribution):
+    for i in range(len(distribution)):
+        if i != 0:
+            distribution[i] = distribution[i] + distribution[i - 1]
+
+    roll = randint(0, 100) / 100
+    for i in range(len(distribution) - 1):
+        if roll < distribution[i]:
+            low_value = i * BIN_SIZE
+            high_value = (i + 1) * BIN_SIZE
+            rand_num = uniform(low_value, high_value)
+            return rand_num
+
+    low_value = len(distribution) * BIN_SIZE
+    high_value = (len(distribution) + 1) * BIN_SIZE
+    rand_num = uniform(low_value, high_value)
+    return rand_num
+
+
+def create_synthetic_dataset(): # todo fix as distribution just squashes towards the start
+    global x, y, s
+
+    # divides the dataset into bins defined by BIN_SIZE
+    number_of_bins = int(max(x) // BIN_SIZE)
+    bins = []
+    for _ in range(number_of_bins):
+        bins.append(0)
+
+    for item in x:
+        placed = False
+        for i in range(number_of_bins):
+            if item < (BIN_SIZE * (i + 1)):
+                bins[i] += 1
+                placed = True
+                break
+
+        if not placed:
+            bins[len(bins) - 1] += 1
+
+    # calculate the frequency of each bin
+
+    distribution = []
+    for i in range(number_of_bins):
+        distribution.append(bins[i] / len(x))
+
+    print(distribution)
+    print(bins)
+    print(len(x))
+
+    test_dataset = []
+    for _ in range(len(x)):
+        test_dataset.append(random_distribution_number(distribution))
+
+    bins = []
+    for _ in range(number_of_bins):
+        bins.append(0)
+
+    for item in test_dataset:
+        placed = False
+        for i in range(number_of_bins):
+            if item < (BIN_SIZE * (i + 1)):
+                bins[i] += 1
+                placed = True
+                break
+
+        if not placed:
+            bins[len(bins) - 1] += 1
+
+    print(bins)
+
+    # todo create histograms from bins
+    # todo create distribution from histogram
+    # todo shift data point around with replacement based on random numbers based on distribution
+    # todo return new dataset
+
+    print("fancy function")
+
+
 def start():
     #  create the initial population
     population = []
+    last_improvment_generation = -1
+    best_chi = -1
     for _ in range(POPULATION_SIZE):
         population.append(create_chromosome())
 
@@ -440,6 +570,12 @@ def start():
             file_f.write(chromosome_to_string(best_ten[j]) + " | " + str(population_chi_values[j]) + "\n")
         print("------------------")
         file_f.write("------------------" + "\n")
+        if best_chi != population_chi_values[0]:
+            best_chi = population_chi_values[0]
+            last_improvment_generation = i
+        else:
+            if i - last_improvment_generation > IMPROVEMENT_CUTOFF != -1:
+                break
         population = []
         for pop in next_generation:
             population.append(pop)
@@ -461,3 +597,4 @@ read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
 start()
+# create_synthetic_dataset()
