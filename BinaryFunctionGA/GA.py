@@ -5,18 +5,18 @@ import numpy as np
 from time import time
 from os import mkdir
 
-MIN_LENGTH = 2
-MAX_LENGTH = 5
+MIN_LENGTH = 1
+MAX_LENGTH = 4
 COEFFICIENT_MIN = 0
 COEFFICIENT_MAX = 20
 EXPONENT_MIN = 0
-EXPONENT_MAX = 15
+EXPONENT_MAX = 10
 COEFFICIENT_BIT_LENGTH = 8
 EXPONENT_BIT_LENGTH = 4
 FUNCTION_BIT_LENGTH = 3
 FLOAT_PRECISION_LENGTH = 10
 MAX_NUMBER_OF_MUTATIONS = 40
-DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/SCPUnion_mu_vs_z.txt"
+DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/dataset.txt"
 POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
@@ -41,14 +41,28 @@ def read_dataset():
     f = open(DATASET_PATH)
     i = 0
     for line in f:
-        if i < 4:
+        if i < 1:
             i += 1
         else:
             line = line.strip()
-            line_split = line.split("\t")
-            x.append(float(line_split[1]))
-            y.append(float(line_split[2]))
-            s.append(float(line_split[3]))
+            line_split = line.split(" ")
+
+            x_string = line_split[1]
+            index = x_string.find("(")
+            x_value = x_string[:index]
+            x.append(float(x_value))
+
+            y_string = line_split[5]
+            index = x_string.find("(")
+            y_value = y_string[:index + 1]
+            s_value = y_string[index + 2: len(y_string) - 1]
+            y.append(float(y_value))
+            s.append(float(s_value))
+
+            # line_split = line.split("\t")
+            # x.append(float(line_split[1]))
+            # y.append(float(line_split[2]))
+            # s.append(float(line_split[3]))
 
 
 def convert_to_binary(to_covert, bit_length):
@@ -117,6 +131,21 @@ def decode_function_value(n, value, exponent):
     return value ** exponent
 
 
+def decode_function(n):
+    d = string_to_decimal(n)
+    if d == 1:
+        return sin
+    if d == 2:
+        return cos
+    if d == 3:
+        return tan
+    if d == 4:
+        return log  # stops a log error in the case of x being 0
+    if d == 5:
+        return e
+    return None
+
+
 def decode_function_string(n, exponent):
     d = string_to_decimal(n)
     if d == 1:
@@ -176,7 +205,11 @@ def chromosome_to_string(chromosome):
         func_binary = chromosome[index: index + FUNCTION_BIT_LENGTH]
         index += FUNCTION_BIT_LENGTH
 
-        exp_sign = int(chromosome[index:index + 1])
+        try:
+            exp_sign = int(chromosome[index:index + 1])
+        except ValueError:
+            exp_sign = 0
+
         index += 1
         exp_i = chromosome[index: index + EXPONENT_BIT_LENGTH]
         index += EXPONENT_BIT_LENGTH
@@ -197,6 +230,53 @@ def chromosome_to_string(chromosome):
         func_string = decode_function_string(func_binary, exp)
         output += (coeff_sign + binary_to_float(coeff_i, coeff_d) + func_string)
     return output
+
+
+def build_chromosome(chromosome):
+    index = 0
+    parts = []
+    functions = []
+
+    while index < len(chromosome):
+        coeff_sign = int(chromosome[index:index + 1])
+        index += 1
+        coeff_i = chromosome[index: index + COEFFICIENT_BIT_LENGTH]
+        index += COEFFICIENT_BIT_LENGTH
+        coeff_d = chromosome[index: index + _float_bit_length]
+        index += _float_bit_length
+
+        func_binary = chromosome[index: index + FUNCTION_BIT_LENGTH]
+        index += FUNCTION_BIT_LENGTH
+        try:
+            exp_sign = int(chromosome[index:index + 1])
+        except ValueError:
+            # i have no idea why this causes an error or why this occurs
+            exp_sign = 0
+        index += 1
+        exp_i = chromosome[index: index + EXPONENT_BIT_LENGTH]
+        index += EXPONENT_BIT_LENGTH
+        exp_d = chromosome[index: index + _float_bit_length]
+        index += _float_bit_length
+
+        if coeff_sign:
+            coeff_sign = "-"
+        else:
+            coeff_sign = "+"
+
+        if exp_sign:
+            exp_sign = "-"
+        else:
+            exp_sign = "+"
+
+        coeff = float(coeff_sign + binary_to_float(coeff_i, coeff_d))
+        exp = float(exp_sign + binary_to_float(exp_i, exp_d))
+        func = decode_function(func_binary)
+
+        parts.append(coeff)
+        parts.append(exp)
+        functions.append(func)
+
+        return functions, parts
 
 
 def evaluate_chromosome(chromosome, value):
@@ -287,7 +367,7 @@ def crossover(chromosome_a, chromosome_b):
 
 def mutate(chromosome):  # todo add ability to remove and add terms during the mutation
     for _ in range(MAX_NUMBER_OF_MUTATIONS):
-        index = randint(0, len(chromosome) - 1)
+        index = randint(1, len(chromosome) - 1)
         gene = chromosome[index]
         if gene == "0":
             chromosome = chromosome[:index-1] + "1" + chromosome[index:]
@@ -298,8 +378,19 @@ def mutate(chromosome):  # todo add ability to remove and add terms during the m
 
 def fitness_function(chromosome):
     chi_2 = 0
+    functions, parts = build_chromosome(chromosome)
     for index in range(len(x)):
-        chi_2 += pow(((y[index] - evaluate_chromosome(chromosome, x[index])) / s[index]), 2)
+        value = x[index]
+        ans = 0
+        for i in range(0, len(parts), 2):
+            func_index = int(i / 2)
+            try:
+                ans += (parts[i] * (functions[func_index](value ** parts[i + 1])))
+            except TypeError:
+                # for when the function type is None when the it is just x
+                ans += parts[i] * (value ** parts[i + 1])
+        chi_2 += pow(((y[index] - ans) / s[index]), 2)
+        #  chi_2 += pow(((y[index] - evaluate_chromosome(chromosome, x[index])) / s[index]), 2)
     return chi_2
 
 
@@ -483,6 +574,3 @@ read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
 start()
-
-# todo encode different functions
-# todo decode the different functions

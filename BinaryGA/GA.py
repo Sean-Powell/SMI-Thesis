@@ -282,7 +282,7 @@ def crossover(chromosome_a, chromosome_b):
             chromosome_b += "0"
             length_b = len(chromosome_b)
 
-    for i in range(length_a - 1):
+    for i in range(length_a):
         i_a = chromosome_a[i]
         i_b = chromosome_b[i]
         if (i_a == '1' and i_b == '1') or (i_a == '0' and i_b == '0'):
@@ -290,17 +290,26 @@ def crossover(chromosome_a, chromosome_b):
         else:
             child += "1"
 
+    if len(child) > length_a and len(child) > length_b:
+        print("A:", length_a)
+        print("B:", length_b)
+        print("C:", len(child))
+
     return child
 
 
 def mutate(chromosome):  # todo add ability to remove and add terms during the mutation
+    length_before = len(chromosome)
     for _ in range(MAX_NUMBER_OF_MUTATIONS):
-        index = randint(0, len(chromosome) - 1)
+        index = randint(1, len(chromosome) - 1)
         gene = chromosome[index]
         if gene == "0":
             chromosome = chromosome[:index-1] + "1" + chromosome[index:]
         else:
             chromosome = chromosome[:index-1] + "0" + chromosome[index:]
+    length_after = len(chromosome)
+    if length_before != length_after:
+        raise Exception("Mutation length changed! Length before", length_before, "length after", length_after)
     return chromosome
 
 
@@ -597,4 +606,5 @@ read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
 start()
+# mutate("000001111011110111111101100100001000101011111110011011011101111110011000101001110110000100001011001111110110111001111010000100011001110111111000111100100110001101011000100110110010011110101101001111011010000001110001111100111110011000000111110010")
 # create_synthetic_dataset()
