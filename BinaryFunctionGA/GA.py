@@ -5,7 +5,7 @@ import numpy as np
 from time import time
 from os import mkdir
 
-MIN_LENGTH = 1
+MIN_LENGTH = 2
 MAX_LENGTH = 4
 COEFFICIENT_MIN = 0
 COEFFICIENT_MAX = 20
@@ -20,6 +20,7 @@ DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/dataset.txt"
 POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
+TERM_MUTATION_RATE = 20
 GENERATION_COUNT = 6000
 GRAPH_STEP = GENERATION_COUNT // 10
 
@@ -276,7 +277,7 @@ def build_chromosome(chromosome):
         parts.append(exp)
         functions.append(func)
 
-        return functions, parts
+    return functions, parts
 
 
 def evaluate_chromosome(chromosome, value):
@@ -323,8 +324,16 @@ def evaluate_chromosome(chromosome, value):
 
 
 def remove_term(chromosome):
-    chromosome = chromosome[:len(chromosome) - _term_bit_length]
-    return chromosome
+    new_chromosome = ""
+    number_of_terms = len(chromosome) // _term_bit_length
+    term_to_remove = randint(0, number_of_terms - 1)
+    index = 0
+    for i in range(0, number_of_terms):
+        if i < term_to_remove or i > term_to_remove:
+            new_chromosome = new_chromosome + chromosome[index:index + _term_bit_length]
+        index = index + _term_bit_length
+
+    return new_chromosome
 
 
 def add_term(chromosome):
@@ -366,6 +375,15 @@ def crossover(chromosome_a, chromosome_b):
 
 
 def mutate(chromosome):  # todo add ability to remove and add terms during the mutation
+    chance = randint(0, 100)
+    num_of_terms = len(chromosome) // _term_bit_length
+    if chance <= TERM_MUTATION_RATE:
+        chance = randint(0, 1)
+        if chance and num_of_terms < MAX_LENGTH:
+            chromosome = add_term(chromosome)
+        elif num_of_terms > MIN_LENGTH:
+            chromosome = remove_term(chromosome)
+
     for _ in range(MAX_NUMBER_OF_MUTATIONS):
         index = randint(1, len(chromosome) - 1)
         gene = chromosome[index]
@@ -390,7 +408,6 @@ def fitness_function(chromosome):
                 # for when the function type is None when the it is just x
                 ans += parts[i] * (value ** parts[i + 1])
         chi_2 += pow(((y[index] - ans) / s[index]), 2)
-        #  chi_2 += pow(((y[index] - evaluate_chromosome(chromosome, x[index])) / s[index]), 2)
     return chi_2
 
 
@@ -574,3 +591,8 @@ read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
 start()
+
+# chromosome = create_chromosome()
+# print(chromosome_to_string(chromosome))
+# print(evaluate_chromosome(chromosome, 1))
+# fitness_function(chromosome)
