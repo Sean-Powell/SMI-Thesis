@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from time import time
 from os import mkdir
+from copy import copy
 
 MIN_LENGTH = 2
 MAX_LENGTH = 10
@@ -412,82 +413,70 @@ def merge_lists(pop_l, chi_l, pop_r, chi_r):
     return pop, chi
 
 
-def random_distribution_number(distribution):
-    for i in range(len(distribution)):
-        if i != 0:
-            distribution[i] = distribution[i] + distribution[i - 1]
+def random_distribution_bin(distribution):
+    total_distribution = copy(distribution)
+    for i in range(1, len(total_distribution) - 1):
+        total_distribution[i] = total_distribution[i - 1] + total_distribution[i]
+    total_distribution[len(total_distribution) - 1] = 1
+    bin_roll = uniform(0, 1)
+    for i in range(0, len(total_distribution) - 1):
+        if bin_roll <= total_distribution[i]:
+            return i
 
-    roll = randint(0, 100) / 100
-    for i in range(len(distribution) - 1):
-        if roll < distribution[i]:
-            low_value = i * BIN_SIZE
-            high_value = (i + 1) * BIN_SIZE
-            rand_num = uniform(low_value, high_value)
-            return rand_num
-
-    low_value = len(distribution) * BIN_SIZE
-    high_value = (len(distribution) + 1) * BIN_SIZE
-    rand_num = uniform(low_value, high_value)
-    return rand_num
+    return len(total_distribution) - 1
 
 
-def create_synthetic_dataset(): # todo fix as distribution just squashes towards the start
+def create_synthetic_dataset():
     global x, y, s
 
     # divides the dataset into bins defined by BIN_SIZE
-    number_of_bins = int(max(x) // BIN_SIZE)
-    bins = []
-    for _ in range(number_of_bins):
-        bins.append(0)
+    number_of_bins = int(ceil(max(x) // BIN_SIZE)) + 1
+    bins_x = []
+    bins_y = []
 
-    for item in x:
+    for _ in range(number_of_bins):
+        bins_x.append([])
+        bins_y.append([])
+
+    for i in range(0, len(x)):
         placed = False
-        for i in range(number_of_bins):
-            if item < (BIN_SIZE * (i + 1)):
-                bins[i] += 1
+        for j in range(number_of_bins):
+            if x[i] < (BIN_SIZE * (j + 1)):
+                bins_x[j].append(x[i])
+                bins_y[j].append(y[i])
                 placed = True
                 break
 
         if not placed:
-            bins[len(bins) - 1] += 1
+            bins_x[len(bins_x) - 1].append(x[i])
+            bins_y[len(bins_y) - 1].append(y[i])
 
     # calculate the frequency of each bin
 
     distribution = []
+    total = 0
     for i in range(number_of_bins):
-        distribution.append(bins[i] / len(x))
+        distribution.append(len(bins_x[i]) / len(x))
+        total += len(bins_x[i]) / len(x)
 
     print(distribution)
-    print(bins)
-    print(len(x))
 
-    test_dataset = []
+    test_dataset_x = []
+    test_dataset_y = []
     for _ in range(len(x)):
-        test_dataset.append(random_distribution_number(distribution))
+        selected_bin_index = random_distribution_bin(distribution)
+        selected_bin_x = bins_x[selected_bin_index]
+        selected_bin_y = bins_y[selected_bin_index]
+        index = randint(0, len(selected_bin_x) - 1)
+        test_dataset_x.append(selected_bin_x[index])
+        test_dataset_y.append(selected_bin_y[index])
 
-    bins = []
-    for _ in range(number_of_bins):
-        bins.append(0)
-
-    for item in test_dataset:
-        placed = False
-        for i in range(number_of_bins):
-            if item < (BIN_SIZE * (i + 1)):
-                bins[i] += 1
-                placed = True
-                break
-
-        if not placed:
-            bins[len(bins) - 1] += 1
-
-    print(bins)
+    return test_dataset_x, test_dataset_y
 
     # todo create histograms from bins
     # todo create distribution from histogram
     # todo shift data point around with replacement based on random numbers based on distribution
     # todo return new dataset
-
-    print("fancy function")
 
 
 def start():
@@ -605,6 +594,24 @@ def start():
 read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
-start()
-# create_synthetic_dataset()
+# start()
+
+
+plt.plot(x, y, 'o')
+plt.errorbar(x, y, yerr=s, fmt=' ')
+plt.xlim(0, max(x) + X_EXTENSION)
+plt.xlabel("Redshift")
+plt.ylabel("Distance modulus")
+plt.title("before")
+plt.show()
+
+x, y = create_synthetic_dataset()
+
+plt.plot(x, y, 'o')
+plt.errorbar(x, y, yerr=s, fmt=' ')
+plt.xlim(0, max(x) + X_EXTENSION)
+plt.xlabel("Redshift")
+plt.ylabel("Distance modulus")
+plt.title("after")
+plt.show()
 
