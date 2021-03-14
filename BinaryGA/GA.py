@@ -20,12 +20,14 @@ DATASET_PATH = "C:/Users/seanp/PycharmProjects/SMI-Thesis/dataset.txt"
 POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
-GENERATION_COUNT = 20000
+GENERATION_COUNT = 3000
 GRAPH_STEP = 500
 Y_LIM = 10000
 X_EXTENSION = 0.2 # How much past the max x value will the graph be extended
 BIN_SIZE = 0.2
 IMPROVEMENT_CUTOFF = -1 # after how many generations without improvement should it stop, set to -1 for it to never happen
+MONTE_CARLO_RUNS = 100
+
 
 _float_bit_length = -1  # is automatically set by calculate_float_bit_length()
 _term_bit_length = -1  # is automatically set by calculate_term_bit_length()
@@ -34,11 +36,12 @@ x = []
 y = []
 s = []
 
+mc_runs = []
 best_chi_squared = []
-
 time_str = str(time())
 mkdir(time_str)
 file_f = open(time_str + "/output.txt", "w")
+file_mc = open(time_str + "/monte_carlo_poly.txt", "w")
 
 # Fitness function took 17.435699224472046 seconds
 # Sorting took 0.00400090217590332 seconds
@@ -168,7 +171,7 @@ def chromosome_to_string(chromosome):
             coeff_sign = "+"
         
         if exp_sign:
-            exp_sign = "-"
+            exp_sign = "-"  # todo change this line
         else:
             exp_sign = "+"
         
@@ -204,7 +207,7 @@ def evaluate_chromosome(chromosome, value): # todo rewrite so that it only
             coeff_sign = "+"
 
         if exp_sign:
-            exp_sign = "-"
+            exp_sign = "-"  # todo change this line
         else:
             exp_sign = "+"
 
@@ -242,7 +245,7 @@ def build_chromosome(chromosome):
             coeff_sign = "+"
 
         if exp_sign:
-            exp_sign = "-"
+            exp_sign = "-"  # todo change this line
         else:
             exp_sign = "+"
 
@@ -329,7 +332,26 @@ def fitness_function(chromosome):
     return chi_2
 
 
-def graph_chromosome(chromosome, index):
+def plot_monte_carlo(chromosomes):
+    plt.plot(x, y, 'o')
+    plt.errorbar(x, y, yerr=s, fmt=' ')
+    func_x = np.linspace(min(x), max(x) + 0.2, 200)
+    for c in chromosomes:
+        func_y = []
+        for i in func_x:
+            func_y.append(evaluate_chromosome(c, i))
+
+        plt.plot(func_x, func_y)
+
+    plt.xlim(0, max(x) + X_EXTENSION)
+    plt.xlabel("Redshift")
+    plt.ylabel("Distance modulus")
+    plt.title("Monte-Carlo Simulation")
+    plt.savefig(time_str + "/monte-carlo.png")
+    plt.show()
+
+
+def graph_chromosome(chromosome, index, run_index):
     plt.plot(x, y, 'o')
     plt.errorbar(x, y, yerr=s, fmt=' ')
 
@@ -346,11 +368,11 @@ def graph_chromosome(chromosome, index):
     plt.xlabel("Redshift")
     plt.ylabel("Distance modulus")
     plt.title("Genetic Algorithm Rank:" + str(index))
-    plt.savefig(time_str + "/" + str(index) + ".png")
-    plt.show()
+    plt.savefig(time_str + "/" + str(run_index) + "/" + str(index) + ".png")
+   # plt.show()
 
 
-def graph_best_chi():
+def graph_best_chi(run_index):
     number_of_gens = []
     for i in range(GENERATION_COUNT):
         number_of_gens.append(i)
@@ -362,7 +384,7 @@ def graph_best_chi():
     plt.xticks(np.arange(0, GENERATION_COUNT, step=GRAPH_STEP))
     plt.ylim([0, Y_LIM])
     plt.legend()
-    plt.savefig(time_str + "/generations_chi.png")
+    plt.savefig(time_str + "/" + str(run_index) + "/generations_chi.png")
     plt.show()
 
 
@@ -473,22 +495,19 @@ def create_synthetic_dataset():
 
     return test_dataset_x, test_dataset_y
 
-    # todo create histograms from bins
-    # todo create distribution from histogram
-    # todo shift data point around with replacement based on random numbers based on distribution
-    # todo return new dataset
 
-
-def start():
+def start(run_index):
     #  create the initial population
     population = []
-    last_improvment_generation = -1
-    best_chi = -1
     for _ in range(POPULATION_SIZE):
         population.append(create_chromosome())
 
+    last_improvement_generation = -1
+    best_chi = -1
+
     # start the generation loop
     for i in range(GENERATION_COUNT):
+        print("Run: " + str(run_index + 1))
         print("Generation: " + str(i + 1))
         file_f.write("Generation: " + str(i + 1) + "\n")
         print("Population Size: " + str(len(population)))
@@ -570,9 +589,9 @@ def start():
         file_f.write("------------------" + "\n")
         if best_chi != population_chi_values[0]:
             best_chi = population_chi_values[0]
-            last_improvment_generation = i
+            last_improvement_generation = i
         else:
-            if i - last_improvment_generation > IMPROVEMENT_CUTOFF != -1:
+            if i - last_improvement_generation > IMPROVEMENT_CUTOFF != -1:
                 break
         population = []
         for pop in next_generation:
@@ -584,34 +603,25 @@ def start():
 
     population, population_chi_values = merge_sort(population, population_chi_values)
 
-    for i in range(10):
-        graph_chromosome(population[i], i + 1)
+    file_mc.write(population[0] + "," + str(population_chi_values[0]) + "\n")
+    mc_runs.append(population[0])
+    mkdir(time_str + "/" + str(run_index + 1))
+    for j in range(10):
+        graph_chromosome(population[j], j + 1, run_index + 1)
 
-    graph_best_chi()
-    file_f.close()
+    #  graph_best_chi(run_index + 1)
 
 
 read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
-# start()
 
 
-plt.plot(x, y, 'o')
-plt.errorbar(x, y, yerr=s, fmt=' ')
-plt.xlim(0, max(x) + X_EXTENSION)
-plt.xlabel("Redshift")
-plt.ylabel("Distance modulus")
-plt.title("before")
-plt.show()
+for k in range(MONTE_CARLO_RUNS):
+    if k != 0:
+        x, y = create_synthetic_dataset()
+    start(k)
 
-x, y = create_synthetic_dataset()
-
-plt.plot(x, y, 'o')
-plt.errorbar(x, y, yerr=s, fmt=' ')
-plt.xlim(0, max(x) + X_EXTENSION)
-plt.xlabel("Redshift")
-plt.ylabel("Distance modulus")
-plt.title("after")
-plt.show()
-
+file_f.close()
+file_mc.close()
+plot_monte_carlo(mc_runs)

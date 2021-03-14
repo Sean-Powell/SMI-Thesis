@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from time import time
 from os import mkdir
+from copy import copy
 
 MIN_LENGTH = 2
 MAX_LENGTH = 4
@@ -21,8 +22,11 @@ POPULATION_SIZE = 500
 SELECTION_RATE = 40
 MUTATION_RATE = 10
 TERM_MUTATION_RATE = 20
-GENERATION_COUNT = 6000
+GENERATION_COUNT = 3000
 GRAPH_STEP = GENERATION_COUNT // 10
+BIN_SIZE = 0.2
+MONTE_CARLO_RUNS = 100
+X_EXTENSION = 0.2 # How much past the max x value will the graph be extended
 
 _float_bit_length = -1  # is automatically set by calculate_float_bit_length()
 _term_bit_length = -1  # is automatically set by calculate_term_bit_length()
@@ -30,12 +34,13 @@ _term_bit_length = -1  # is automatically set by calculate_term_bit_length()
 x = []
 y = []
 s = []
-
+mc_runs = []
 best_chi_squared = []
 
 time_str = str(time())
 mkdir(time_str)
 file_f = open(time_str + "/output.txt", "w")
+file_mc = open(time_str + "/monte_carlo_poly.txt", "w")
 
 
 def read_dataset():
@@ -411,7 +416,7 @@ def fitness_function(chromosome):
     return chi_2
 
 
-def graph_chromosome(chromosome, index):
+def graph_chromosome(chromosome, index, run_index):
     plt.plot(x, y, 'o')
     plt.errorbar(x, y, yerr=s, fmt=' ')
 
@@ -428,8 +433,8 @@ def graph_chromosome(chromosome, index):
     plt.xlabel("Redshift")
     plt.ylabel("Distance modulus")
     plt.title("Genetic Algorithm Rank:" + str(index))
-    plt.savefig(time_str + "/" + str(index) + ".png")
-    plt.show()
+    plt.savefig(time_str + "/" + str(run_index) + "/" + str(index) + ".png")
+    # plt.show()
 
 
 def graph_best_chi():
@@ -495,7 +500,87 @@ def merge_lists(pop_l, chi_l, pop_r, chi_r):
     return pop, chi
 
 
-def start():
+def random_distribution_bin(distribution):
+    total_distribution = copy(distribution)
+    for i in range(1, len(total_distribution) - 1):
+        total_distribution[i] = total_distribution[i - 1] + total_distribution[i]
+    total_distribution[len(total_distribution) - 1] = 1
+    bin_roll = uniform(0, 1)
+    for i in range(0, len(total_distribution) - 1):
+        if bin_roll <= total_distribution[i]:
+            return i
+
+    return len(total_distribution) - 1
+
+
+def create_synthetic_dataset():
+    global x, y, s
+
+    # divides the dataset into bins defined by BIN_SIZE
+    number_of_bins = int(ceil(max(x) // BIN_SIZE)) + 1
+    bins_x = []
+    bins_y = []
+
+    for _ in range(number_of_bins):
+        bins_x.append([])
+        bins_y.append([])
+
+    for i in range(0, len(x)):
+        placed = False
+        for j in range(number_of_bins):
+            if x[i] < (BIN_SIZE * (j + 1)):
+                bins_x[j].append(x[i])
+                bins_y[j].append(y[i])
+                placed = True
+                break
+
+        if not placed:
+            bins_x[len(bins_x) - 1].append(x[i])
+            bins_y[len(bins_y) - 1].append(y[i])
+
+    # calculate the frequency of each bin
+
+    distribution = []
+    total = 0
+    for i in range(number_of_bins):
+        distribution.append(len(bins_x[i]) / len(x))
+        total += len(bins_x[i]) / len(x)
+
+    print(distribution)
+
+    test_dataset_x = []
+    test_dataset_y = []
+    for _ in range(len(x)):
+        selected_bin_index = random_distribution_bin(distribution)
+        selected_bin_x = bins_x[selected_bin_index]
+        selected_bin_y = bins_y[selected_bin_index]
+        index = randint(0, len(selected_bin_x) - 1)
+        test_dataset_x.append(selected_bin_x[index])
+        test_dataset_y.append(selected_bin_y[index])
+
+    return test_dataset_x, test_dataset_y
+
+
+def plot_monte_carlo(chromosomes):
+    plt.plot(x, y, 'o')
+    plt.errorbar(x, y, yerr=s, fmt=' ')
+    func_x = np.linspace(min(x), max(x) + 0.2, 200)
+    for c in chromosomes:
+        func_y = []
+        for i in func_x:
+            func_y.append(evaluate_chromosome(c, i))
+
+        plt.plot(func_x, func_y)
+
+    plt.xlim(0, max(x) + X_EXTENSION)
+    plt.xlabel("Redshift")
+    plt.ylabel("Distance modulus")
+    plt.title("Monte-Carlo Simulation")
+    plt.savefig(time_str + "/monte-carlo.png")
+    plt.show()
+
+
+def start(run_index):
     #  create the initial population
     population = []
     for _ in range(POPULATION_SIZE):
@@ -503,6 +588,7 @@ def start():
 
     # start the generation loop
     for i in range(GENERATION_COUNT):
+        print("Run: " + str(run_index + 1))
         print("Generation: " + str(i + 1))
         file_f.write("Generation: " + str(i + 1) + "\n")
         print("Population Size: " + str(len(population)))
@@ -580,17 +666,27 @@ def start():
 
     population, population_chi_values = merge_sort(population, population_chi_values)
 
-    for i in range(10):
-        graph_chromosome(population[i], i + 1)
+    file_mc.write(population[0] + "," + str(population_chi_values[0]) + "\n")
+    mc_runs.append(population[0])
+    mkdir(time_str + "/" + str(run_index + 1))
+    for j in range(10):
+        graph_chromosome(population[j], j + 1, run_index + 1)
 
-    graph_best_chi()
-    file_f.close()
+    #  graph_best_chi()
 
 
 read_dataset()
 calculate_float_bit_length()
 calculate_term_bit_length()
-start()
+
+for k in range(MONTE_CARLO_RUNS):
+    if k != 0:
+        x, y = create_synthetic_dataset()
+    start(k)
+
+file_f.close()
+file_mc.close()
+plot_monte_carlo(mc_runs)
 
 # chromosome = create_chromosome()
 # print(chromosome_to_string(chromosome))
